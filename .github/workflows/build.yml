@@ -3,6 +3,8 @@ name: Build Plugin
 # 触发条件：推送代码或创建 Pull Request 时
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [after_sync]
 jobs:
   build:
     runs-on: ubuntu-latest  # 使用 Ubuntu 环境
