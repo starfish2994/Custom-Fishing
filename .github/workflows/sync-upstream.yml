@@ -1,0 +1,59 @@
+name: Sync with Upstream
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天 UTC 时间 2 点执行（北京时间 10 点）
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your fork repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 拉取所有历史提交
+
+      - name: Get upstream repo URL from GitHub API
+        id: get_upstream
+        run: |
+          # 调用GitHub API获取当前仓库的元数据（包含上游仓库信息）
+          # GITHUB_REPOSITORY 是环境变量，格式为 "你的用户名/你的仓库名"
+          RESPONSE=$(gh api /repos/${{ github.repository }})
+          
+          # 从响应中提取上游仓库的URL（fork仓库会有parent字段）
+          UPSTREAM_URL=$(echo "$RESPONSE" | jq -r '.parent.html_url + ".git"')
+          
+          # 检查是否获取到上游URL（非fork仓库会返回null）
+          if [ "$UPSTREAM_URL" = "null.git" ]; then
+            echo "当前仓库不是fork，无法获取上游仓库URL"
+            exit 1
+          fi
+          
+          # 输出上游URL供后续步骤使用
+          echo "UPSTREAM_URL=$UPSTREAM_URL" >> $GITHUB_OUTPUT
+        env:
+          # 使用内置的GITHUB_TOKEN进行API认证（无需额外权限）
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add or update upstream repo
+        run: |
+          # 检查上游仓库是否已存在，存在则更新地址，不存在则添加
+          if ! git remote | grep -q upstream; then
+            git remote add upstream ${{ steps.get_upstream.outputs.UPSTREAM_URL }}
+          else
+            git remote set-url upstream ${{ steps.get_upstream.outputs.UPSTREAM_URL }}
+          fi
+
+      - name: Fetch upstream updates
+        run: git fetch upstream
+
+      - name: Merge upstream into your main branch
+        run: |
+          git checkout main  # 切换到你的主分支（如 main/master）
+          git merge upstream/main  # 合并上游主分支的更新
+          # 若有冲突且无法自动解决，任务会失败，需手动处理后再推送
+
+      - name: Push updates to your fork
+        run: git push origin main
+    
