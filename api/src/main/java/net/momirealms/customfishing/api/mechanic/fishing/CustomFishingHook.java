@@ -464,6 +464,11 @@ public class CustomFishingHook {
         context.arg(ContextKeys.OTHER_Y, hook.getLocation().getBlockY());
         context.arg(ContextKeys.OTHER_Z, hook.getLocation().getBlockZ());
 
+        FishingResultEvent event = new FishingResultEvent(context, FishingResultEvent.Result.FAILURE, hook, nextLoot);
+        if (EventUtils.fireAndCheckCancel(event)) {
+            return;
+        }
+
         gears.trigger(ActionTrigger.FAILURE, context);
         plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.FAILURE);
     }
@@ -618,6 +623,10 @@ public class CustomFishingHook {
         if (!nextLoot.disableStats()) {
             plugin.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(
                     userData -> {
+                        int amount = userData.statistics().getAmount(nextLoot.statisticKey().amountKey());
+                        if (amount == 0) {
+                            context.arg(ContextKeys.FIRST_CAPTURE, true);
+                        }
                         Pair<Integer, Integer> result = userData.statistics().addAmount(nextLoot.statisticKey().amountKey(), 1);
                         context.arg(ContextKeys.TOTAL_AMOUNT, userData.statistics().getAmount(nextLoot.statisticKey().amountKey()));
                         Optional.ofNullable(context.arg(ContextKeys.SIZE)).ifPresentOrElse(size -> {

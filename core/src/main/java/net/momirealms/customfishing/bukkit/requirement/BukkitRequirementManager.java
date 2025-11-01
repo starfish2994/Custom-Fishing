@@ -166,6 +166,7 @@ public class BukkitRequirementManager implements RequirementManager<Player> {
     }
 
     private void registerBuiltInRequirements() {
+        this.registerFirstCaptureRequirement();
         this.registerTimeRequirement();
         this.registerYRequirement();
         this.registerInWaterRequirement();
@@ -334,6 +335,27 @@ public class BukkitRequirementManager implements RequirementManager<Player> {
                 return Requirement.empty();
             }
         }, "item-in-hand");
+        registerRequirement((args, actions, runActions) -> {
+            if (args instanceof Section section) {
+                boolean mainOrOff = section.getString("hand","main").equalsIgnoreCase("main");
+                int amount = section.getInt("amount", 1);
+                List<String> items = ListUtils.toList(section.get("item"));
+                return context -> {
+                    ItemStack itemStack = mainOrOff ?
+                            context.holder().getInventory().getItemInMainHand()
+                            : context.holder().getInventory().getItemInOffHand();
+                    String id = plugin.getItemManager().getItemID(itemStack);
+                    if (!items.contains(id) || itemStack.getAmount() < amount) {
+                        return true;
+                    }
+                    if (runActions) ActionManager.trigger(context, actions);
+                    return false;
+                };
+            } else {
+                plugin.getPluginLogger().warn("Invalid value type: " + args.getClass().getSimpleName() + " found at !item-in-hand requirement which is expected be `Section`");
+                return Requirement.empty();
+            }
+        }, "!item-in-hand");
     }
 
     private void registerPluginLevelRequirement() {
@@ -435,6 +457,19 @@ public class BukkitRequirementManager implements RequirementManager<Player> {
                 return Requirement.empty();
             }
         }, "&&");
+    }
+
+    private void registerFirstCaptureRequirement() {
+        registerRequirement((args, actions, runActions) -> {
+            boolean required = (boolean) args;
+            return context -> {
+                Boolean arg = context.arg(ContextKeys.FIRST_CAPTURE);
+                boolean first = arg != null && arg;
+                if (first == required) return true;
+                if (runActions) ActionManager.trigger(context, actions);
+                return false;
+            };
+        }, "first-capture");
     }
 
     private void registerInWaterRequirement() {
